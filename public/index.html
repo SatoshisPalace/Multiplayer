@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Netplayjs Game" />
+    <title>Netplayjs Game</title>
+    <script src="https://unpkg.com/netplayjs@0.4.1/dist/netplay.js" integrity="sha384-6Yb8LWAT488jwK+nIjvD4S5/poq1Xn69NYjH1RXKHoaUOaFJrKQ1rfGQgKm8oQjX" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      class SimpleGame extends netplayjs.Game {
+        constructor() {
+          super();
+          this.aPos = { x: 100, y: 150 };
+          this.bPos = { x: 500, y: 150 };
+        }
+
+        tick(playerInputs) {
+          for (const [player, input] of playerInputs.entries()) {
+            const vel = input.arrowKeys();
+
+            if (player.getID() == 0) {
+              this.aPos.x += vel.x * 5;
+              this.aPos.y -= vel.y * 5;
+            } else if (player.getID() == 1) {
+              this.bPos.x += vel.x * 5;
+              this.bPos.y -= vel.y * 5;
+            }
+          }
+        }
+
+        draw(canvas) {
+          const ctx = canvas.getContext("2d");
+
+          ctx.fillStyle = "black";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.fillStyle = "red";
+          ctx.fillRect(this.aPos.x - 5, this.aPos.y - 5, 10, 10);
+          ctx.fillStyle = "blue";
+          ctx.fillRect(this.bPos.x - 5, this.bPos.y - 5, 10, 10);
+        }
+      }
+
+      SimpleGame.timestep = 1000 / 60;
+      SimpleGame.canvasSize = { width: 600, height: 300 };
+
+      window.onload = function() {
+        if (!document.getElementById('game-container')) {
+          const container = document.createElement('div');
+          container.id = 'game-container';
+          document.body.appendChild(container);
+        }
+        new netplayjs.RollbackWrapper(SimpleGame).start();
+      }
+    </script>
+  </body>
+</html>
