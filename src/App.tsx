@@ -5,11 +5,15 @@ import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <GameProvider>
+    <GameProvider>
+      <div style={{ 
+        minHeight: '100vh',
+        backgroundColor: '#f5f5f5',
+        padding: '20px'
+      }}>
         <Game />
-      </GameProvider>
-    </div>
+      </div>
+    </GameProvider>
   );
 }
 

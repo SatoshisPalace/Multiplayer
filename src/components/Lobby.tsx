@@ -1,81 +1,137 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
-import './Lobby.css';
+import Game from './Game';
 
 const Lobby: React.FC = () => {
-  const {
-    lobbyId,
-    isHost,
-    players,
-    playerName,
-    setPlayerName,
-    createLobby,
-    joinLobby,
-    startGame,
-    socket
+  const { 
+    playerName, 
+    setPlayerName, 
+    createGame, 
+    joinGame,
+    connectionData,
+    isGameStarted,
+    players 
   } = useGame();
 
-  const [joinLobbyId, setJoinLobbyId] = useState('');
+  const [joinConnectionData, setJoinConnectionData] = useState('');
+  const [showGame, setShowGame] = useState(false);
 
-  const handleCreateLobby = () => {
-    if (!playerName) {
-      alert('Please enter your name');
-      return;
-    }
-    createLobby();
-  };
+  if (showGame) {
+    return <Game />;
+  }
 
-  const handleJoinLobby = () => {
-    if (!playerName) {
-      alert('Please enter your name');
-      return;
-    }
-    if (!joinLobbyId) {
-      alert('Please enter a lobby ID');
-      return;
-    }
-    joinLobby(joinLobbyId);
-  };
+  if (isGameStarted) {
+    setShowGame(true);
+    return <Game />;
+  }
 
   return (
-    <div className="lobby-container">
-      <h2>Game Lobby</h2>
+    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+      <h2>P2P Game Setup</h2>
       
-      {!lobbyId ? (
-        <div className="lobby-join">
-          <input
-            type="text"
-            placeholder="Enter your name"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
+      {/* Step 1: Enter Name */}
+      <div style={{ marginBottom: '20px' }}>
+        <h3>Step 1: Enter Your Name</h3>
+        <input
+          type="text"
+          placeholder="Enter your name"
+          value={playerName}
+          onChange={(e) => setPlayerName(e.target.value)}
+          style={{ padding: '8px', width: '200px' }}
+        />
+      </div>
+
+      {/* Step 2: Create or Join */}
+      <div style={{ marginBottom: '20px' }}>
+        <h3>Step 2: Create or Join Game</h3>
+        <button 
+          onClick={createGame}
+          disabled={!playerName}
+          style={{ 
+            padding: '10px 20px',
+            marginRight: '10px',
+            backgroundColor: !playerName ? '#ccc' : '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: playerName ? 'pointer' : 'not-allowed'
+          }}
+        >
+          Create New Game
+        </button>
+      </div>
+
+      {/* Connection Data (shown after creating) */}
+      {connectionData && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3>Step 3: Share this code with your friend</h3>
+          <textarea 
+            readOnly 
+            value={connectionData}
+            style={{ 
+              width: '100%', 
+              height: '100px',
+              padding: '8px',
+              marginBottom: '10px',
+              backgroundColor: '#f5f5f5'
+            }}
           />
-          <button onClick={handleCreateLobby}>Create Lobby</button>
-          <div className="join-section">
-            <input
-              type="text"
-              placeholder="Enter Lobby ID"
-              value={joinLobbyId}
-              onChange={(e) => setJoinLobbyId(e.target.value)}
-            />
-            <button onClick={handleJoinLobby}>Join Lobby</button>
-          </div>
+          <button
+            onClick={() => navigator.clipboard.writeText(connectionData)}
+            style={{
+              padding: '5px 10px',
+              backgroundColor: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Copy to Clipboard
+          </button>
         </div>
-      ) : (
-        <div className="lobby-info">
-          <h3>Lobby ID: {lobbyId}</h3>
-          <div className="players-list">
-            <h4>Players:</h4>
-            <ul>
-              {players.map(player => (
-                <li key={player.id}>
-                  {player.name} {isHost && socket && player.id === socket.id ? '(Host)' : ''}
-                </li>
-              ))}
-            </ul>
-          </div>
-          {isHost && socket && players.length >= 1 && (
-            <button onClick={startGame}>Start Game</button>
-          )}
+      )}
+
+      {/* Join Game Section */}
+      <div>
+        <h3>Or Join a Game</h3>
+        <p>Paste the connection code from your friend:</p>
+        <textarea
+          placeholder="Paste connection code here"
+          value={joinConnectionData}
+          onChange={(e) => setJoinConnectionData(e.target.value)}
+          style={{ 
+            width: '100%', 
+            height: '100px',
+            padding: '8px',
+            marginBottom: '10px'
+          }}
+        />
+        <button 
+          onClick={() => joinGame(joinConnectionData)}
+          disabled={!playerName || !joinConnectionData}
+          style={{ 
+            padding: '10px 20px',
+            backgroundColor: (!playerName || !joinConnectionData) ? '#ccc' : '#2196F3',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: (playerName && joinConnectionData) ? 'pointer' : 'not-allowed'
+          }}
+        >
+          Join Game
+        </button>
+      </div>
+
+      {/* Connected Players */}
+      {players.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <h3>Connected Players:</h3>
+          <ul>
+            {players.map(player => (
+              <li key={player.id}>{player.name}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

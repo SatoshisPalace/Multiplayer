@@ -1,41 +1,40 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useGame } from '../context/GameContext';
 import Lobby from './Lobby';
-import './Game.css';
 
 const Game: React.FC = () => {
   const {
     players,
+    playerName,
     isGameStarted,
-    updatePosition,
-    socket
+    updatePosition
   } = useGame();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lastRender = useRef(0);
 
   useEffect(() => {
-    if (!isGameStarted) return;
-
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (!socket) return;
-      const player = players.find(p => p.id === socket.id);
-      if (!player) return;
-
-      const newPosition = { ...player.position };
-      const MOVE_SPEED = 5;
+      const speed = 5;
+      let newPosition = { x: 0, y: 0 };
+      const currentPlayer = players.find(p => p.name === playerName);
+      
+      if (!currentPlayer) return;
+      
+      newPosition = { ...currentPlayer.position };
 
       switch (e.key) {
         case 'ArrowUp':
-          newPosition.y -= MOVE_SPEED;
+          newPosition.y -= speed;
           break;
         case 'ArrowDown':
-          newPosition.y += MOVE_SPEED;
+          newPosition.y += speed;
           break;
         case 'ArrowLeft':
-          newPosition.x -= MOVE_SPEED;
+          newPosition.x -= speed;
           break;
         case 'ArrowRight':
-          newPosition.x += MOVE_SPEED;
+          newPosition.x += speed;
           break;
       }
 
@@ -44,45 +43,80 @@ const Game: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isGameStarted, players, updatePosition, socket]);
+  }, [players, playerName, updatePosition]);
 
   useEffect(() => {
-    if (!canvasRef.current || !isGameStarted) return;
-
     const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const PLAYER_SIZE = 30;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw players
-    players.forEach(player => {
-      ctx.fillStyle = socket && player.id === socket.id ? '#00ff00' : '#ff0000';
-      ctx.fillRect(player.position.x, player.position.y, PLAYER_SIZE, PLAYER_SIZE);
+    const render = (timestamp: number) => {
+      if (!isGameStarted) return;
       
-      // Draw player name
-      ctx.fillStyle = '#000000';
-      ctx.font = '14px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(player.name, player.position.x + PLAYER_SIZE/2, player.position.y + PLAYER_SIZE + 20);
-    });
-  }, [players, isGameStarted, socket]);
+      // Calculate delta time
+      const delta = timestamp - lastRender.current;
+      lastRender.current = timestamp;
 
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw all players
+      players.forEach(player => {
+        ctx.fillStyle = player.name === playerName ? '#00ff00' : '#ff0000';
+        ctx.beginPath();
+        ctx.arc(player.position.x, player.position.y, 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw player name
+        ctx.fillStyle = '#000';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(player.name, player.position.x, player.position.y + 35);
+      });
+
+      requestAnimationFrame(render);
+    };
+
+    requestAnimationFrame(render);
+  }, [players, playerName, isGameStarted]);
+
+  // Show lobby if game hasn't started
   if (!isGameStarted) {
     return <Lobby />;
   }
 
   return (
-    <div className="game-container">
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      padding: '20px' 
+    }}>
+      <div style={{ marginBottom: '20px' }}>
+        <h2>Game in Progress</h2>
+        <div>Players Connected: {players.length}</div>
+        <ul>
+          {players.map(player => (
+            <li key={player.id}>{player.name}</li>
+          ))}
+        </ul>
+      </div>
       <canvas
         ref={canvasRef}
         width={800}
         height={600}
-        className="game-canvas"
+        style={{ 
+          border: '2px solid black',
+          borderRadius: '4px',
+          backgroundColor: '#f0f0f0'
+        }}
       />
+      <div style={{ marginTop: '20px' }}>
+        <p>Use arrow keys to move your character (green)</p>
+        <p>Other players will appear in red</p>
+      </div>
     </div>
   );
 };

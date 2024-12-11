@@ -1,0 +1,8 @@
+{
+  "short_name": "Multiplayer Game",
+  "name": "Simple Peer Multiplayer Game",
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
