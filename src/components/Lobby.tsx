@@ -31,7 +31,20 @@ const Lobby: React.FC = () => {
       alert('Please enter connection data to join a game!');
       return;
     }
-    joinGame(joinInput);
+    try {
+      const data = JSON.parse(joinInput);
+      if (!data.type || !data.sdp) {
+        throw new Error('Invalid connection data format');
+      }
+      joinGame(joinInput);
+    } catch (error) {
+      alert('Invalid connection data. Please make sure you copied the entire connection string.');
+    }
+  };
+
+  const handleCopyConnectionData = () => {
+    navigator.clipboard.writeText(connectionData);
+    alert('Connection data copied to clipboard!');
   };
 
   return (
@@ -79,6 +92,40 @@ const Lobby: React.FC = () => {
         </button>
       </div>
 
+      {/* Connection Data Display */}
+      {connectionData && (
+        <div style={{ marginBottom: '30px' }}>
+          <h3>Your Connection Data</h3>
+          <p style={{ marginBottom: '10px' }}>Share this with other players:</p>
+          <textarea
+            value={connectionData}
+            readOnly
+            style={{
+              width: '100%',
+              height: '100px',
+              marginBottom: '10px',
+              padding: '8px',
+              backgroundColor: '#f5f5f5'
+            }}
+          />
+          <button
+            onClick={handleCopyConnectionData}
+            style={{
+              padding: '5px 10px',
+              fontSize: '14px',
+              cursor: 'pointer',
+              backgroundColor: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              marginBottom: '20px'
+            }}
+          >
+            Copy to Clipboard
+          </button>
+        </div>
+      )}
+
       {/* Join Game Section */}
       <div style={{ marginBottom: '30px' }}>
         <h3>Join Existing Game</h3>
@@ -108,24 +155,6 @@ const Lobby: React.FC = () => {
           Join Game
         </button>
       </div>
-
-      {/* Connection Data Display */}
-      {connectionData && (
-        <div style={{ marginBottom: '30px' }}>
-          <h3>Your Connection Data</h3>
-          <p style={{ marginBottom: '10px' }}>Share this with other players:</p>
-          <textarea
-            value={connectionData}
-            readOnly
-            style={{
-              width: '100%',
-              height: '100px',
-              marginBottom: '10px',
-              padding: '8px'
-            }}
-          />
-        </div>
-      )}
 
       {/* Connected Players */}
       {players.size > 0 && (
