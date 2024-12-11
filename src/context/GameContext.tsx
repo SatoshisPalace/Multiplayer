@@ -1,9 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Default to Heroku's free tier for WebSocket hosting
-const DEFAULT_SOCKET_SERVER = 'https://simple-peer-game.herokuapp.com';
-
 interface Player {
   id: string;
   name: string;
@@ -33,98 +30,61 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isHost, setIsHost] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [playerName, setPlayerName] = useState('');
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
-  const maxRetries = 3;
 
   useEffect(() => {
-    const connectToServer = () => {
-      try {
-        const serverUrl = process.env.REACT_APP_SERVER_URL || DEFAULT_SOCKET_SERVER;
-        console.log('Connecting to server:', serverUrl);
+    // Initialize socket connection
+    const serverUrl = process.env.REACT_APP_SERVER_URL || window.location.origin;
+    console.log('Connecting to server:', serverUrl);
+    
+    const newSocket = io(serverUrl, {
+      transports: ['websocket'],
+      upgrade: false,
+      path: '/socket.io'
+    });
+    
+    setSocket(newSocket);
 
-        const newSocket = io(serverUrl, {
-          transports: ['websocket'],
-          upgrade: false,
-          reconnection: true,
-          reconnectionAttempts: 3,
-          reconnectionDelay: 1000
-        });
-
-        newSocket.on('connect', () => {
-          console.log('Connected to server successfully');
-          setSocket(newSocket);
-          setConnectionAttempts(0);
-        });
-
-        newSocket.on('connect_error', (error) => {
-          console.error('Connection error:', error);
-          if (connectionAttempts < maxRetries) {
-            setConnectionAttempts(prev => prev + 1);
-            setTimeout(connectToServer, 2000);
-          }
-        });
-
-        return newSocket;
-      } catch (error) {
-        console.error('Failed to connect to server:', error);
-        return null;
-      }
-    };
-
-    const socket = connectToServer();
-
+    // Cleanup on unmount
     return () => {
-      if (socket) {
-        console.log('Cleaning up socket connection');
-        socket.close();
-      }
+      if (newSocket) newSocket.close();
     };
-  }, [connectionAttempts]);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
 
-    const handlers = {
-      'lobby-created': (id: string) => {
-        console.log('Lobby created:', id);
-        setLobbyId(id);
-        setIsHost(true);
-      },
-      'joined-lobby': (id: string) => {
-        console.log('Joined lobby:', id);
-        setLobbyId(id);
-      },
-      'players-update': (updatedPlayers: Player[]) => {
-        console.log('Players updated:', updatedPlayers);
-        setPlayers(updatedPlayers);
-      },
-      'game-started': () => {
-        console.log('Game started');
-        setIsGameStarted(true);
-      },
-      'join-error': (message: string) => {
-        console.error('Join error:', message);
-        alert(message);
-      },
-      'disconnect': () => {
-        console.log('Disconnected from server');
-        setPlayers([]);
-        setLobbyId(null);
-        setIsHost(false);
-        setIsGameStarted(false);
-      }
-    };
-
-    // Register all event handlers
-    Object.entries(handlers).forEach(([event, handler]) => {
-      socket.on(event, handler);
+    socket.on('lobby-created', (id: string) => {
+      console.log('Lobby created:', id);
+      setLobbyId(id);
+      setIsHost(true);
     });
 
-    // Cleanup event handlers
+    socket.on('joined-lobby', (id: string) => {
+      console.log('Joined lobby:', id);
+      setLobbyId(id);
+    });
+
+    socket.on('players-update', (updatedPlayers: Player[]) => {
+      console.log('Players updated:', updatedPlayers);
+      setPlayers(updatedPlayers);
+    });
+
+    socket.on('game-started', () => {
+      console.log('Game started');
+      setIsGameStarted(true);
+    });
+
+    socket.on('join-error', (message: string) => {
+      console.error('Join error:', message);
+      alert(message);
+    });
+
     return () => {
-      Object.keys(handlers).forEach(event => {
-        socket.off(event);
-      });
+      socket.off('lobby-created');
+      socket.off('joined-lobby');
+      socket.off('players-update');
+      socket.off('game-started');
+      socket.off('join-error');
     };
   }, [socket]);
 
@@ -134,8 +94,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.emit('create-lobby', playerName);
     } else {
       console.error('Cannot create lobby: socket or player name missing');
-      if (!socket) alert('Unable to connect to server. Please try again.');
-      if (!playerName) alert('Please enter your name');
     }
   };
 
@@ -145,8 +103,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.emit('join-lobby', { lobbyId: id, playerName });
     } else {
       console.error('Cannot join lobby: socket or player name missing');
-      if (!socket) alert('Unable to connect to server. Please try again.');
-      if (!playerName) alert('Please enter your name');
     }
   };
 

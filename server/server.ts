@@ -8,22 +8,28 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
-  }
+  },
+  path: '/socket.io'
 });
 
 const PORT = process.env.PORT || 3001;
 
 // Enable CORS
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: "*",
   credentials: true
 }));
 
-// Serve static files
-app.use(express.static(path.join(__dirname, '../public')));
+// Serve static files from the React build directory
+app.use(express.static(path.join(__dirname, '../build')));
+
+// Handle any requests that don't match the above
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../build/index.html'));
+});
 
 // Store active lobbies
 interface Lobby {
