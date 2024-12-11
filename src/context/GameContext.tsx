@@ -1,166 +1,126 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import SimplePeer from 'simple-peer';
+import { Position } from '../game/GameEngine';
 
-interface Player {
-  id: string;
-  name: string;
-  position: { x: number; y: number };
-}
-
-interface PeerConnection {
-  peer: SimplePeer.Instance;
-  playerId: string;
-}
-
-interface GameContextType {
-  players: Player[];
-  isHost: boolean;
-  isGameStarted: boolean;
+export interface GameContextType {
+  peer: SimplePeer.Instance | null;
+  localId: string | null;
+  players: Map<string, string>; // Map of playerId to playerName
   playerName: string;
+  gameStarted: boolean;
   connectionData: string;
   setPlayerName: (name: string) => void;
   createGame: () => void;
   joinGame: (connectionData: string) => void;
-  updatePosition: (position: { x: number; y: number }) => void;
+  updatePosition: (position: Position) => void;
 }
 
-const GameContext = createContext<GameContextType | null>(null);
+const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [isHost, setIsHost] = useState(false);
-  const [isGameStarted, setIsGameStarted] = useState(false);
+  const [peer, setPeer] = useState<SimplePeer.Instance | null>(null);
+  const [localId, setLocalId] = useState<string | null>(null);
+  const [players, setPlayers] = useState<Map<string, string>>(new Map());
   const [playerName, setPlayerName] = useState('');
+  const [gameStarted, setGameStarted] = useState(false);
   const [connectionData, setConnectionData] = useState('');
-  const peerConnection = useRef<PeerConnection | null>(null);
-  const localPlayer = useRef<Player>({ 
-    id: crypto.randomUUID(),
-    name: '',
-    position: { x: 100, y: 100 }
-  });
 
-  const initializePeer = (initiator: boolean) => {
-    const peer = new SimplePeer({
-      initiator,
-      trickle: false,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
+  const createGame = useCallback(() => {
+    const newPeer = new SimplePeer({
+      initiator: true,
+      trickle: false
+    });
+
+    newPeer.on('signal', data => {
+      setConnectionData(JSON.stringify(data));
+    });
+
+    newPeer.on('connect', () => {
+      const newLocalId = Math.random().toString(36).substring(7);
+      setLocalId(newLocalId);
+      setPlayers(new Map([[newLocalId, playerName]]));
+      setGameStarted(true);
+    });
+
+    newPeer.on('data', data => {
+      const message = JSON.parse(data.toString());
+      if (message.type === 'join') {
+        setPlayers(prevPlayers => {
+          const newPlayers = new Map(prevPlayers);
+          newPlayers.set(message.playerId, message.playerName);
+          return newPlayers;
+        });
+        newPeer.send(JSON.stringify({
+          type: 'players',
+          players: Array.from(players.entries())
+        }));
       }
     });
 
-    peer.on('signal', data => {
-      // Convert the signal data to a shareable string
-      const signalString = JSON.stringify(data);
-      setConnectionData(signalString);
+    setPeer(newPeer);
+  }, [playerName, players]);
+
+  const joinGame = useCallback((connectionData: string) => {
+    const newPeer = new SimplePeer({
+      initiator: false,
+      trickle: false
     });
 
-    peer.on('connect', () => {
-      console.log('Peer connection established!');
-      setIsGameStarted(true);
+    newPeer.on('signal', data => {
+      setConnectionData(JSON.stringify(data));
+    });
 
-      // Send local player info
-      peer.send(JSON.stringify({
-        type: 'player-info',
-        player: localPlayer.current
+    newPeer.on('connect', () => {
+      const newLocalId = Math.random().toString(36).substring(7);
+      setLocalId(newLocalId);
+      newPeer.send(JSON.stringify({
+        type: 'join',
+        playerId: newLocalId,
+        playerName
       }));
     });
 
-    peer.on('data', data => {
-      try {
-        const message = JSON.parse(data.toString());
-        if (message.type === 'position') {
-          setPlayers(prev => 
-            prev.map(p => 
-              p.id !== localPlayer.current.id 
-                ? { ...p, position: message.position }
-                : p
-            )
-          );
-        } else if (message.type === 'player-info') {
-          const remotePlayer: Player = message.player;
-          setPlayers(prev => [...prev.filter(p => p.id !== remotePlayer.id), remotePlayer]);
-        }
-      } catch (err) {
-        console.error('Error parsing peer data:', err);
+    newPeer.on('data', data => {
+      const message = JSON.parse(data.toString());
+      if (message.type === 'players') {
+        const playerEntries = message.players as [string, string][];
+        setPlayers(new Map(playerEntries));
+        setGameStarted(true);
       }
     });
 
-    peer.on('error', err => {
-      console.error('Peer error:', err);
-    });
-
-    return peer;
-  };
-
-  const createGame = () => {
-    setIsHost(true);
-    localPlayer.current.name = playerName;
-    setPlayers([localPlayer.current]);
-    
-    const peer = initializePeer(true);
-    peerConnection.current = { 
-      peer, 
-      playerId: crypto.randomUUID() 
-    };
-  };
-
-  const joinGame = (connectionData: string) => {
     try {
-      localPlayer.current.name = playerName;
-      setPlayers([localPlayer.current]);
-
-      const peer = initializePeer(false);
-      peerConnection.current = { 
-        peer, 
-        playerId: crypto.randomUUID() 
-      };
-
-      // Connect using the provided connection data
-      const signal = JSON.parse(connectionData);
-      peer.signal(signal);
-    } catch (err) {
-      console.error('Error joining game:', err);
+      newPeer.signal(JSON.parse(connectionData));
+    } catch (error) {
+      console.error('Invalid connection data:', error);
     }
-  };
 
-  const updatePosition = (position: { x: number; y: number }) => {
-    // Update local player position
-    localPlayer.current.position = position;
-    setPlayers(prev => 
-      prev.map(p => 
-        p.id === localPlayer.current.id 
-          ? { ...p, position }
-          : p
-      )
-    );
+    setPeer(newPeer);
+  }, [playerName]);
 
-    // Send position to peer
-    if (peerConnection.current?.peer && peerConnection.current.peer.connected) {
-      const positionUpdate = JSON.stringify({
+  const updatePosition = useCallback((position: Position) => {
+    if (peer && localId) {
+      peer.send(JSON.stringify({
         type: 'position',
+        playerId: localId,
         position
-      });
-      peerConnection.current.peer.send(positionUpdate);
+      }));
     }
-  };
+  }, [peer, localId]);
 
   return (
-    <GameContext.Provider
-      value={{
-        players,
-        isHost,
-        isGameStarted,
-        playerName,
-        connectionData,
-        setPlayerName,
-        createGame,
-        joinGame,
-        updatePosition,
-      }}
-    >
+    <GameContext.Provider value={{
+      peer,
+      localId,
+      players,
+      playerName,
+      gameStarted,
+      connectionData,
+      setPlayerName,
+      createGame,
+      joinGame,
+      updatePosition
+    }}>
       {children}
     </GameContext.Provider>
   );
@@ -168,7 +128,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useGame = () => {
   const context = useContext(GameContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useGame must be used within a GameProvider');
   }
   return context;

@@ -1,121 +1,123 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGame } from '../context/GameContext';
+import { GameEngine, Player } from '../game/GameEngine';
 import Lobby from './Lobby';
 
 const Game: React.FC = () => {
-  const {
-    players,
-    playerName,
-    isGameStarted,
-    updatePosition
-  } = useGame();
-
+  const { peer, localId, players, gameStarted } = useGame();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lastRender = useRef(0);
+  const gameEngineRef = useRef<GameEngine | null>(null);
+  const keysPressed = useRef<Set<string>>(new Set());
+  const animationFrameRef = useRef<number>();
 
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      const speed = 5;
-      let newPosition = { x: 0, y: 0 };
-      const currentPlayer = players.find(p => p.name === playerName);
-      
-      if (!currentPlayer) return;
-      
-      newPosition = { ...currentPlayer.position };
+    if (!gameStarted || !canvasRef.current || !localId) return;
 
-      switch (e.key) {
-        case 'ArrowUp':
-          newPosition.y -= speed;
-          break;
-        case 'ArrowDown':
-          newPosition.y += speed;
-          break;
-        case 'ArrowLeft':
-          newPosition.x -= speed;
-          break;
-        case 'ArrowRight':
-          newPosition.x += speed;
-          break;
+    // Initialize game engine
+    const canvas = canvasRef.current;
+    canvas.width = 800;
+    canvas.height = 600;
+    
+    const gameEngine = new GameEngine(canvas, localId);
+    gameEngineRef.current = gameEngine;
+
+    // Add all current players to the game
+    players.forEach((name, id) => {
+      const player: Player = {
+        id,
+        name,
+        position: { x: Math.random() * (canvas.width - 40) + 20, y: Math.random() * (canvas.height - 40) + 20 }
+      };
+      gameEngine.addPlayer(player);
+    });
+
+    // Set up keyboard event listeners
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current.add(e.key);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    // Game loop
+    const gameLoop = () => {
+      if (!gameEngine || !peer) return;
+
+      // Handle input and update position
+      const newPosition = gameEngine.handleInput(keysPressed.current);
+      if (newPosition) {
+        // Send position update to peers
+        players.forEach((_, peerId) => {
+          if (peerId !== localId) {
+            peer.send(JSON.stringify({
+              type: 'position',
+              playerId: localId,
+              position: newPosition
+            }));
+          }
+        });
+        gameEngine.updatePlayerPosition(localId, newPosition);
       }
 
-      updatePosition(newPosition);
+      // Render game
+      gameEngine.render();
+      animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [players, playerName, updatePosition]);
+    // Start game loop
+    gameLoop();
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [gameStarted, localId, peer, players]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!peer) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const render = (timestamp: number) => {
-      if (!isGameStarted) return;
-      
-      // Calculate delta time
-      const delta = timestamp - lastRender.current;
-      lastRender.current = timestamp;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw all players
-      players.forEach(player => {
-        ctx.fillStyle = player.name === playerName ? '#00ff00' : '#ff0000';
-        ctx.beginPath();
-        ctx.arc(player.position.x, player.position.y, 20, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw player name
-        ctx.fillStyle = '#000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(player.name, player.position.x, player.position.y + 35);
-      });
-
-      requestAnimationFrame(render);
+    const handleData = (data: string) => {
+      try {
+        const message = JSON.parse(data);
+        if (message.type === 'position' && gameEngineRef.current) {
+          gameEngineRef.current.updatePlayerPosition(message.playerId, message.position);
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error);
+      }
     };
 
-    requestAnimationFrame(render);
-  }, [players, playerName, isGameStarted]);
+    peer.on('data', handleData);
 
-  // Show lobby if game hasn't started
-  if (!isGameStarted) {
+    return () => {
+      peer.off('data', handleData);
+    };
+  }, [peer]);
+
+  if (!gameStarted) {
     return <Lobby />;
   }
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      padding: '20px' 
-    }}>
-      <div style={{ marginBottom: '20px' }}>
-        <h2>Game in Progress</h2>
-        <div>Players Connected: {players.length}</div>
-        <ul>
-          {players.map(player => (
-            <li key={player.id}>{player.name}</li>
-          ))}
-        </ul>
-      </div>
+    <div className="game-container">
       <canvas
         ref={canvasRef}
-        width={800}
-        height={600}
-        style={{ 
-          border: '2px solid black',
-          borderRadius: '4px',
-          backgroundColor: '#f0f0f0'
-        }}
+        style={{ border: '1px solid black' }}
       />
       <div style={{ marginTop: '20px' }}>
-        <p>Use arrow keys to move your character (green)</p>
-        <p>Other players will appear in red</p>
+        <h3>Connected Players:</h3>
+        <ul>
+          {Array.from(players.entries()).map(([id, name]) => (
+            <li key={id}>{name} {id === localId ? '(You)' : ''}</li>
+          ))}
+        </ul>
       </div>
     </div>
   );
