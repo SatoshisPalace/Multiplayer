@@ -1,69 +1,81 @@
 import React, { useState } from 'react';
+import { useGame } from '../context/GameContext';
+import './Lobby.css';
 
-interface LobbyProps {
-  onStartGame: (roomCode: string, isHost: boolean) => void;
-}
+const Lobby: React.FC = () => {
+  const {
+    lobbyId,
+    isHost,
+    players,
+    playerName,
+    setPlayerName,
+    createLobby,
+    joinLobby,
+    startGame,
+    socket
+  } = useGame();
 
-const Lobby: React.FC<LobbyProps> = ({ onStartGame }) => {
-  const [playerName, setPlayerName] = useState('');
-  const [roomCode, setRoomCode] = useState('');
-  const [isHost, setIsHost] = useState(false);
-  const [error, setError] = useState('');
+  const [joinLobbyId, setJoinLobbyId] = useState('');
 
-  const handleCreateRoom = () => {
+  const handleCreateLobby = () => {
     if (!playerName) {
-      setError('Please enter your name');
+      alert('Please enter your name');
       return;
     }
-    const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setRoomCode(newRoomCode);
-    setIsHost(true);
-    onStartGame(newRoomCode, true);
+    createLobby();
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinLobby = () => {
     if (!playerName) {
-      setError('Please enter your name');
+      alert('Please enter your name');
       return;
     }
-    if (!roomCode) {
-      setError('Please enter a room code');
+    if (!joinLobbyId) {
+      alert('Please enter a lobby ID');
       return;
     }
-    setError('');
-    onStartGame(roomCode.toUpperCase(), false);
+    joinLobby(joinLobbyId);
   };
 
   return (
-    <div className="lobby">
+    <div className="lobby-container">
       <h2>Game Lobby</h2>
-      {error && <div className="error">{error}</div>}
-      <div>
-        <input
-          type="text"
-          placeholder="Enter your name"
-          value={playerName}
-          onChange={(e) => setPlayerName(e.target.value)}
-        />
-      </div>
-      {!isHost ? (
-        <div>
-          <button onClick={handleCreateRoom}>Create Room</button>
-          <div>
+      
+      {!lobbyId ? (
+        <div className="lobby-join">
+          <input
+            type="text"
+            placeholder="Enter your name"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+          />
+          <button onClick={handleCreateLobby}>Create Lobby</button>
+          <div className="join-section">
             <input
               type="text"
-              placeholder="Enter room code"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              maxLength={6}
+              placeholder="Enter Lobby ID"
+              value={joinLobbyId}
+              onChange={(e) => setJoinLobbyId(e.target.value)}
             />
-            <button onClick={handleJoinRoom}>Join Room</button>
+            <button onClick={handleJoinLobby}>Join Lobby</button>
           </div>
         </div>
       ) : (
-        <div>
-          <h3>Room Code: {roomCode}</h3>
-          <p>Share this code with your friend to join the game!</p>
+        <div className="lobby-info">
+          <h3>Lobby ID: {lobbyId}</h3>
+          <div className="players-list">
+            <h4>Players:</h4>
+            <ul>
+              {players.map(player => (
+                <li key={player.id}>
+                  {player.name} {isHost && socket && player.id === socket.id ? '(Host)' : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {isHost && socket && players.length >= 1 && (
+            <button onClick={startGame}>Start Game</button>
+          )}
         </div>
       )}
     </div>

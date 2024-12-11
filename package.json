@@ -1,26 +1,35 @@
 {
-  "name": "netplayjs-game",
-  "version": "0.1.0",
+  "name": "simple-peer-game",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@types/cors": "^2.8.17",
     "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.0",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
+    "@types/node": "^16.18.68",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
+    "simple-peer": "^9.11.0",
+    "socket.io": "^4.3.2",
+    "socket.io-client": "^4.3.2",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "cross-env DISABLE_ESLINT_PLUGIN=true react-scripts build",
+    "deploy": "npm run build && permaweb-deploy --deploy-folder ./build --ant-process $DEPLOY_ANT_PROCESS --undername=multi",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "server": "npx ts-node --project server/tsconfig.server.json server/server.ts",
+    "dev": "concurrently \"npm run server\" \"npm start\""
   },
   "eslintConfig": {
     "extends": [
@@ -39,5 +48,13 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "@types/simple-peer": "^9.11.3",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "nodemon": "^2.0.15",
+    "ts-node": "^10.4.0"
   }
 }

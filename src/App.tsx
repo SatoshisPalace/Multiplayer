@@ -1,11 +1,14 @@
 import React from 'react';
-import './App.css';
+import { GameProvider } from './context/GameContext';
 import Game from './components/Game';
+import './App.css';
 
 function App() {
   return (
     <div className="App">
-      <Game />
+      <GameProvider>
+        <Game />
+      </GameProvider>
     </div>
   );
 }
